@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Precision GDD Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; color: #333; }
+        .header { background: #2e7d32; color: white; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .credit { font-size: 0.9em; opacity: 0.9; margin-top: 5px; }
+        .container { width: 95%; max-width: 1100px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        #map { height: 400px; width: 100%; border-radius: 8px; margin: 20px 0; border: 1px solid #ddd; }
+        .controls { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 5px solid #2e7d32; }
+        input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .loader { display: none; color: #2e7d32; font-weight: bold; text-align: center; padding: 20px; }
+        .grid-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 25px; }
+        .crop-card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 8px; text-align: center; transition: transform 0.2s; }
+        .crop-card:hover { transform: translateY(-3px); border-color: #2e7d32; }
+        .crop-card strong { color: #2e7d32; display: block; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1 style="margin:0;">🌱 US Precision GDD Dashboard</h1>
+    <div class="credit">Developed by Ali Bazrafkan | 📞 701-729-9088</div>
+</div>
+
+<div class="container">
+    <div class="controls">
+        <div><strong>Step 1:</strong> Select Sowing Date <input type="date" id="sowing_date" value="2025-04-01"></div>
+        <div><strong>Step 2:</strong> Click the map on your field location.</div>
+    </div>
+
+    <div id="map"></div>
+    <div id="loader" class="loader">🔄 Analyzing local weather data...</div>
+
+    <div id="results" style="display:none;">
+        <h3 style="border-bottom: 2px solid #eee; padding-bottom: 10px;">Growth Accumulation Results</h3>
+        <img id="gdd-plot" src="" style="width:100%; border-radius: 8px; margin-bottom: 20px;">
+        <div class="grid-results" id="stat-grid"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([39.82, -98.57], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let marker = null;
+
+    map.on('click', function(e) {
+        const lat = e.latlng.lat, lon = e.latlng.lng;
+        const sowingDate = document.getElementById('sowing_date').value;
+
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lon]).addTo(map).bindPopup("Selected Field").openPopup();
+
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+
+        fetch('/calculate_gdd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({lat: lat, lon: lon, sowing_date: sowingDate})
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('gdd-plot').src = "data:image/png;base64," + data.plot;
+            
+            let html = "";
+            for (const [crop, val] of Object.entries(data.totals)) {
+                html += `<div class="crop-card"><strong>${crop}</strong>${val}<br><small>GDD Units</small></div>`;
+            }
+            document.getElementById('stat-grid').innerHTML = html;
+        });
+    });
+</script>
+</body>
+</html>
